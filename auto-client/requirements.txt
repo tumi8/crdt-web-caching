@@ -1,0 +1,4 @@
+click~=8.1.7
+requests~=2.31.0
+validators~=0.23.0
+numpy~=1.26.4
