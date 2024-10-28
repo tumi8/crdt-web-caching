@@ -43,7 +43,7 @@ If you are referring to our work or use our data in your publication, you can us
   address = {Prague, Czech Republic},
   keywords = {REST; CDN; CRDT},
   year = 2024,
-  days=28,
+  day=28,
   month=oct,
 }{% endraw %}
 ```
