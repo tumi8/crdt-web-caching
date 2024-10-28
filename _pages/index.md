@@ -7,7 +7,7 @@ title: "CRDT Web Caching: Additional Material"
 description: "Additional material for the publication \"CRDT Web Caching: Enabling Distributed Writes and Fast Cache Consistency for REST APIs\", providing access to published data and tools."
 ---
 
-The paper is published at [CNSM 2024](https://www.cnsm-conf.org/2024/).
+The paper is published at [CNSM 2024](https://www.cnsm-conf.org/2024/). You can view it over **[[IFIP]](https://opendl.ifip-tc6.org/db/conf/cnsm/cnsm2024/1571043735.pdf)**.
 
 
 <div class="accordion-box">
@@ -43,7 +43,7 @@ If you are referring to our work or use our data in your publication, you can us
   address = {Prague, Czech Republic},
   keywords = {REST; CDN; CRDT},
   year = 2024,
-  days=27,
+  days=28,
   month=oct,
 }{% endraw %}
 ```
