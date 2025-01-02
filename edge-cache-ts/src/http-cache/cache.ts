@@ -4,13 +4,15 @@ import {ClientRequest, IncomingHttpHeaders, IncomingMessage, OutgoingHttpHeaders
 import {createClient, RedisClientType, SetOptions} from 'redis';
 import {Multicast} from "../multicast/multicast.js";
 
+class RedisCacheValue{
+    constructor(public body: string, public headers: string[]) {}
+}
 
 class HTTPCache {
     middleware: RequestHandler
     origin: string
     proxy: RequestHandler
     redis: RedisClientType
-    redisEvents: RedisClientType
     edge_servers: string[]
     host_name: string
     multicast: Multicast
@@ -25,8 +27,7 @@ class HTTPCache {
             parseReqBody: false
         })
         this.redis = createClient({ url: redis })
-        this.redisEvents = this.redis.duplicate()
-        this.redis.on('error', err => console.log('Redis Client Error', err));
+        this.redis.on('error', (err: any) => console.log('Redis Client Error', err));
         this.edge_servers = edge_servers.split(',').map(s => s.trim())
         this.host_name = host_name
         this.multicast = new Multicast(this.edge_servers.filter((v,n,a) => { return v != this.host_name }), this.receiveInvalidation.bind(this))
@@ -35,8 +36,6 @@ class HTTPCache {
     async init() {
         await this.redis.connect()
         await this.redis.flushAll()
-        await this.redisEvents.connect()
-        await this.redisEvents.pSubscribe('__key*__:expired', this.receiveExpiryEvent.bind(this))
 
         if (this.edge_servers.length > 0) {
             this.multicast.start()
@@ -55,7 +54,7 @@ class HTTPCache {
         if (redisValue == null) {
             this.proxy(req, res, next)
         } else {
-            const redisObject = JSON.parse(redisValue)
+            const redisObject: RedisCacheValue = JSON.parse(redisValue)
 
             const headers = redisObject.headers
             for (let i = 0; i < headers.length - 1; i+=2) {
@@ -72,7 +71,7 @@ class HTTPCache {
                          proxyResData: any,
                          userReq: Request,
                          userRes: Response): Promise<any> {
-        let expirySeconds = 3600
+        let expirySeconds = 60 * 60 * 2
         if (userReq.headers['no-invalidation']) {
             expirySeconds = 300
         }
@@ -82,15 +81,12 @@ class HTTPCache {
             if (cc && cc.includes('max-age')) {
                 let cacheKey = userReq.url
                 const options: SetOptions = { EX: expirySeconds }
-                await this.redis.set(cacheKey, JSON.stringify({
-                    body: proxyResData.toString('base64'),
-                    headers: proxyRes.rawHeaders
-                }), options)
+                let cacheValue = new RedisCacheValue(proxyResData.toString('base64'), proxyRes.rawHeaders)
+                await this.redis.set(cacheKey, JSON.stringify(cacheValue), options)
                 let labels = proxyRes.headersDistinct["x-label"]
                 if (labels) {
                     for (const invalidateLabel of labels) {
-                        await this.redis.sAdd(invalidateLabel, cacheKey)
-                        await this.redis.sAdd(`key:${cacheKey}`, invalidateLabel)
+                        await this.redis.sAdd(`label:${invalidateLabel}`, cacheKey)
                     }
                 }
             }
@@ -109,19 +105,8 @@ class HTTPCache {
     }
 
     async receiveInvalidation(label: string) {
-        const labels = await this.redis.sMembers(label)
-        let labels2 = labels.map( (v) => `key:${v}` )
-        await this.redis.del(labels.concat(labels2, [label]))
-    }
-
-    async receiveExpiryEvent(key: any, channel: any) {
-        console.log(`Key Expiring: ${key} on ${channel}`)
-        let lookupKey = `key:${key}`
-        let deleteLabels = await this.redis.sMembers(lookupKey)
-        if (deleteLabels.length > 0) {
-            deleteLabels.push(lookupKey)
-            await this.redis.del(deleteLabels)
-        }
+        const deleteKeys: string[] = await this.redis.sMembers(`label:${label}`)
+        await this.redis.del(deleteKeys)
     }
 
     modifyOriginResponsHeades(

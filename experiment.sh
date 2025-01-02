@@ -20,8 +20,8 @@ set -x
 
 source mininet/.venv/bin/activate
 
-mininet/main.py --api $API_ENDPOINT --mode $API_MODE --log-dir $OUT_DIR/$API_ENDPOINT/$API_MODE --scale-size 1 --scale-interval 60 --scale-times 100
+mininet/main.py --api $API_ENDPOINT --mode $API_MODE --log-dir $OUT_DIR/$API_ENDPOINT/$API_MODE --scale-size 1 --scale-interval 60 --scale-times 100 --stats False
 
 echo "results available under $OUT_DIR/$API_ENDPOINT/$API_MODE"
-# pos_upload -fr $OUT_DIR/$API_ENDPOINT/$API_MODE
+pos_upload -fr $OUT_DIR/$API_ENDPOINT/$API_MODE
 

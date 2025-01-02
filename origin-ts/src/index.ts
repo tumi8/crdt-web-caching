@@ -5,7 +5,7 @@ import http from 'http';
 import dotenv from "dotenv";
 import { WebSocketServer } from "ws"
 import { NodeWSServerAdapter } from '@automerge/automerge-repo-network-websocket'
-import { Repo } from "@automerge/automerge-repo"
+import { Repo, RepoConfig } from "@automerge/automerge-repo"
 import Flights from "./flights/flights.js";
 import cors from 'cors';
 import nocache from "nocache"
@@ -23,11 +23,12 @@ app.set('etag', false)
 const port = process.env.PORT || 3000;
 
 const wsServer = new WebSocketServer({ noServer: true })
-const config = {
+const config: RepoConfig = {
   network: [new NodeWSServerAdapter(wsServer)],
   // storage: new NodeFSStorageAdapter(),
 }
 const serverRepo = new Repo(config)
+serverRepo.saveDebounceRate = 200
 
 const flights = new Flights(serverRepo)
 const forums = new Forum(serverRepo)

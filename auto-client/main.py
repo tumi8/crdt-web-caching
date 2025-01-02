@@ -6,7 +6,6 @@ import random
 import select
 import signal
 import string
-import subprocess
 import sys
 import time
 from json import JSONDecodeError
@@ -16,7 +15,7 @@ import click
 import requests
 import validators
 import numpy as np
-from requests import Request, Response
+from requests import Response
 
 interrupted = False
 random.seed(42)
@@ -177,8 +176,6 @@ def run_autonomous_client(api: str, mode: str, edge_server: str, test: int, clie
             if 'CLOSE' in readline:
                 print('Received CLOSE input', file=sys.stderr, flush=True)
                 interrupted = True
-            else:
-                print(f'Received: {readline}', file=sys.stderr, flush=True)
 
         if api == 'flights':
             run_flights_client(edge_server_url, headers, n)
@@ -196,13 +193,17 @@ def log_event(event: str, details: str, start_time: int, total_start_time: int, 
 
 
 def log_version(meta: Dict, response: Response, start_time: int):
-    cached = None
-    cachedHeader = response.headers.get('X-Cached')
-    if cachedHeader:
-        cached = cachedHeader == 'true'
-    duration = time.time_ns() - start_time
-    log_msg = { 'type': 'Versioning', 'time': time.time_ns(), 'object': meta['id'], 'version': meta['version'], 'duration': duration, 'cached': cached }
-    print(json.dumps(log_msg))
+    try:
+        cached = None
+        cachedHeader = response.headers.get('X-Cached')
+        if cachedHeader:
+            cached = cachedHeader == 'true'
+        duration = time.time_ns() - start_time
+        log_msg = { 'type': 'Versioning', 'time': time.time_ns(), 'object': meta['id'], 'version': meta['version'], 'duration': duration, 'cached': cached }
+        print(json.dumps(log_msg))
+    except Exception as err:
+        logging.exception(f'Exception during logging version {err}', exc_info=err)
+        raise err
 
 
 def make_flight_choice() -> int:

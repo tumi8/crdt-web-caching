@@ -32,6 +32,7 @@ export class CRDTCache {
         this.repo = new Repo({
             network: [new BrowserWebSocketClientAdapter(`ws://${origin}`)],
         })
+        this.repo.saveDebounceRate = 250
     }
 
     proxyPath(req: Request) {
@@ -53,7 +54,7 @@ export class CRDTCache {
             let body = JSON.parse(proxyResData.toString('utf8'))
 
             if (body.url && isValidAutomergeUrl(body.url)) {
-                this.redis.set(`crdt:${userReq.url}`, proxyResData.toString('utf8')).catch(e => console.error(e))
+                this.redis.set(`crdt:${userReq.url}`, proxyResData.toString('utf8')).catch((e: any) => console.error(e))
 
                 let handle = this.repo.find(body.url)
                 handle.on('ephemeral-message', this.handleDocumentDelete.bind(this))
@@ -63,7 +64,7 @@ export class CRDTCache {
                 userRes.setHeader("X-CRDT-API", "true")
 
                 let resp = await this.getResponseFromCRDT(userReq, handle, body)
-                if (resp.errors) {
+                if (!resp || resp.errors) {
                     userRes.status(404)
                 }
                 return resp
@@ -125,7 +126,7 @@ export class CRDTCache {
                 res.setHeader("X-Cached", "true")
                 res.setHeader("X-CRDT-API", "true")
                 let responseBody = await this.getResponseFromCRDT(req, docHandle, crdtConfig)
-                if (responseBody.errors) {
+                if (!responseBody || responseBody.errors) {
                     res.status(404)
                 } else {
                     res.status(200)

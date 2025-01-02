@@ -2,4 +2,4 @@
 
 set -eux
 
-redis-server --port $REDIS_PORT --maxmemory 1gb --maxmemory-policy volatile-lru --notify-keyspace-events Ex --save "" --appendonly no
+redis-server --port $REDIS_PORT --maxmemory 2gb --maxmemory-policy volatile-lru --notify-keyspace-events Ex --save "" --appendonly no

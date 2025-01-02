@@ -1,4 +1,5 @@
 import {NextFunction, Request, RequestHandler, Response} from "express";
+import {throttle} from "../helper/throttle.js";
 
 
 export class Multicast {
@@ -6,7 +7,7 @@ export class Multicast {
     sendPipe: [string, number, string[]][]
     middleware: RequestHandler
     callback: (x: string) => void
-    immediateRunning: boolean
+    sendJobThrottled: () => void
 
 
     constructor(peers: string[], callback: (x: string) => void) {
@@ -18,15 +19,14 @@ export class Multicast {
         this.sendPipe = []
         this.middleware = this.routeRequest.bind(this)
         this.callback = callback
-        this.immediateRunning = false
+        this.sendJobThrottled = throttle(this.sendJob.bind(this), 200)
     }
 
     start() {
-        setInterval(this.sendJob.bind(this), 5000)
+        setInterval(this.sendJobThrottled, 5000)
     }
 
     sendJob() {
-        this.immediateRunning = true
         const sendFailures = this.sendPipe
         this.sendPipe = []
         const remoteSends = new Map<string, [string, number, string[]]>()
@@ -35,12 +35,12 @@ export class Multicast {
             if (!remoteSends.has(map_key)) {
                 remoteSends.set(map_key, [peer, retries, []])
             }
+            // @ts-ignore
             remoteSends.get(map_key)[2].push(...labels)
         }
         for (const [key, [peer, retries, labels ]] of remoteSends.entries()) {
             this.sendToPeer(peer, labels, retries-1)
         }
-        this.immediateRunning = false
     }
 
     async routeRequest(req: Request, res: Response, next: NextFunction) {
@@ -62,10 +62,7 @@ export class Multicast {
         for (const peer of this.peers) {
             this.sendPipe.push([peer, 3, labels])
         }
-        if (!this.immediateRunning) {
-            this.immediateRunning = true
-            setImmediate(this.sendJob.bind(this))
-        }
+        this.sendJobThrottled()
     }
 
     sendToPeer(peer: string, labels: string[], retries: number) {

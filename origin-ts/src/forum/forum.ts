@@ -1,23 +1,40 @@
-import express, {NextFunction, Request, Response, Router} from "express";
-import {DocHandle, Repo} from "@automerge/automerge-repo";
-import {Counter, next as A} from "@automerge/automerge"
-import {hrtime} from "node:process"
+import {NextFunction, Request, Response, Router} from "express";
+import {DocHandle, DocHandleChangePayload, Repo } from "@automerge/automerge-repo";
+import {next as A} from "@automerge/automerge"
 import microtime from 'microtime';
 import * as os from "os";
-import {DocHandleChangePayload} from "@automerge/automerge-repo/src/DocHandle.js";
-import {throttle} from "@automerge/automerge-repo/src/helpers/throttle.js";
+import {throttle} from "../helper/throttle.js";
 
+class ForumObject {
+  constructor(readonly id: number, readonly title: string) {}
+}
+
+class MetaObject {
+  constructor(public id: string, public version: A.Counter, public forumId: number | null ) {}
+}
+
+class ForumDocObject {
+  constructor(public data: {[k: string]: ForumObject}, public meta: MetaObject ) {}
+}
+
+class ForumDocDetailObject {
+  constructor(public data: ForumMessage[], public meta: MetaObject ) {}
+}
+
+class ForumMessage {
+  constructor(readonly message: string) {}
+}
 
 class Forum {
 
   router: Router
-  forums: Map<number, any>
+  forums: Map<number, ForumObject>
   forumVersion: number
   forumDetailVersion: Map<number,number>
-  forumDetails: Map<number, any>
+  forumDetails: Map<number, ForumMessage[]>
 
-  forumDoc: DocHandle<object>
-  forumDetailDocs: Map<number, DocHandle<object>>
+  forumDoc: DocHandle<ForumDocObject>
+  forumDetailDocs: Map<number, DocHandle<ForumDocDetailObject>>
 
   repo: Repo
 
@@ -26,26 +43,25 @@ class Forum {
     this.router = Router();
     this.forumVersion = 0
     this.forumDetailVersion = new Map()
-    this.forums = new Map();
-    this.forumDetails = new Map();
+    this.forums = new Map<number, ForumObject>();
+    this.forumDetails = new Map<number, ForumMessage[]>();
     this.forumDetailDocs = new Map();
 
     for (let j = 0; j < 100; j++) {
-      let forum = this.generateForum(j)
-      this.forums.set(j, forum)
-      this.initializeForum(j)
-      let forumDetail = this.repo.create({
-        data: this.forumDetails.get(j),
-        meta: { id: `forum_${j}`, version: new Counter(0), forumId: j }
-      })
-      forumDetail.on('change', this.logForumChange.bind(this))
-      forumDetail.on('change', throttle(this.forumChanged.bind(this), 100))
+
+      let details = this.initializeForum(j)
+      let forumDetail = this.repo.create(new ForumDocDetailObject(
+        details,
+        { id: `forum_${j}`, version: new A.Counter(0), forumId: j }
+      ))
+      forumDetail.on('change', this.forumChanged.bind(this))
+      forumDetail.on('change', throttle(this.forumChangedThrottled.bind(this), 1000))
       this.forumDetailDocs.set(j, forumDetail)
     }
-    this.forumDoc = this.repo.create({
-      data: Object.fromEntries(this.forums.entries()),
-      meta:  { id: 'forums', version: new Counter(this.forumVersion) }
-    })
+    this.forumDoc = this.repo.create(new ForumDocObject(
+      Object.fromEntries(this.forums.entries()),
+      new MetaObject('forums', new A.Counter(this.forumVersion), null)
+    ))
     this.logVersion('forum', this.forumVersion)
 
     this.router.get('/', this.getForums.bind(this))
@@ -65,14 +81,6 @@ class Forum {
       result += characters.charAt(Math.floor(Math.random() * characters.length));
     }
     return result;
-  }
-
-  generateForum(id: number) {
-    var title = this.makeRandomString(15)
-    return {
-      id: id,
-      title: title
-    }
   }
 
   getForums(req: Request, res: Response, next: NextFunction) {
@@ -96,20 +104,16 @@ class Forum {
   postMessage(req: Request, res: Response, next: NextFunction) {
     let forumId = Number(req.params.forumId)
     let message = req.body
-    if (!this.forums.has(forumId)) {
+    let forumDetails = this.forumDetails.get(forumId)
+    if (!forumDetails) {
       res.status(404).send({errors: [{title: 'Forum not found'}]})
     } else {
-      let forum = this.forumDetails.get(forumId)
       let forumDetailVersion = this.forumDetailVersion.get(forumId) || 0
       this.forumDetailVersion.set(forumId, forumDetailVersion + 1)
-      forum.unshift(message)
-      if (forum.length > 100) {
-        forum.pop()
+      forumDetails.unshift(message)
+      while (forumDetails.length > 100) {
+        forumDetails.pop()
       }
-      this.forumDetailDocs.get(forumId)?.change(doc => {
-        doc.data.unshift(message)
-        doc.meta.version.increment()
-      })
 
       this.logVersion(`forum_${forumId}`, this.forumDetailVersion.get(forumId) || -1)
 
@@ -118,22 +122,17 @@ class Forum {
     }
   }
 
-  forumChanged(payload: DocHandleChangePayload<object>) {
-    let forumId = payload.doc.meta.forumId
-    if (payload.doc.data != this.forumDetails.get(forumId)) {
-      this.forumDetails.set(forumId, payload.doc.data)
-      this.forumDetailVersion.set(forumId, payload.doc.meta.version.value)
-    }
-    if (payload.doc.data.length > 100) {
-      payload.handle.change(doc => {
-        doc.data.splice(100)
-        doc.meta.version.increment(1)
-      })
-    }
+  // Will be called throttled on each forum details separately
+  forumChangedThrottled(payload: DocHandleChangePayload<ForumDocDetailObject>) {
+    let forumHandle = payload.handle
+    forumHandle.change(doc => {
+      doc.data.splice(100)
+      doc.meta.version.increment(1)
+    })
   }
 
-  logForumChange(payload: DocHandleChangePayload<object>) {
-    this.logVersion(payload.doc.meta.id, payload.doc.meta.version)
+  forumChanged(payload: DocHandleChangePayload<ForumDocDetailObject>) {
+    this.logVersion(payload.doc.meta.id, payload.doc.meta.version.value)
   }
 
   getForumDocument(req: Request, res: Response, next: NextFunction) {
@@ -156,17 +155,24 @@ class Forum {
     })
   }
 
-  private initializeForum(forumId: number) {
-    if (!this.forumDetails.has(forumId)) {
-      let data = []
-      for (let j = 0; j < 100; j++) {
-        let message = this.makeRandomString(15)
-        data.push({ message: message })
-      }
-      this.forumDetails.set(forumId, data)
-      this.forumDetailVersion.set(forumId, 0)
-      this.logVersion(`forum_${forumId}`, 0)
+  initializeForum(forumId: number): ForumMessage[] {
+    var title = this.makeRandomString(15)
+    let forum =  {
+      id: forumId,
+      title: title
     }
+
+    this.forums.set(forumId, forum)
+
+    let data: ForumMessage[] = []
+    for (let j = 0; j < 100; j++) {
+      let message = this.makeRandomString(15)
+      data.push({ message: message })
+    }
+    this.forumDetails.set(forumId, data)
+    this.forumDetailVersion.set(forumId, 0)
+    this.logVersion(`forum_${forumId}`, 0)
+    return data
   }
 
   private logVersion(s: string, version: number) {
