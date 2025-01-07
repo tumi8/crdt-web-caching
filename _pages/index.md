@@ -29,7 +29,7 @@ The paper is published at [CNSM 2024](https://www.cnsm-conf.org/2024/). You can 
 To supplement our paper, we provide the following additional contributions:
 
 - Our [experiment setup]({{ site.baseurl }}{% link _pages/pipeline.md %}) including our proof-of-concept implementation of CRDT Web Caching and the scripts to reproduce our measurements and results
-- Our measurement data used to generate the plots from the paper
+- Our [measurement data]({{ site.baseurl }}{% link _pages/data.md %}) used to generate the plots from the paper
 - The [figures]({{ site.baseurl }}{% link _pages/figures.md %}) from the paper as interactive plots.
 
 
@@ -37,14 +37,15 @@ If you are referring to our work or use our data in your publication, you can us
 
 ```bib
 {% raw %}@InProceedings{sosnowski2024crdts,
-  author = {Markus Sosnowski and Richard {von Seck} and Florian Wiedner and Georg Carle},
-  title = {{CRDT Web Caching}: Enabling Distributed Writes and Fast Cache Consistency for {REST} {APIs}},
+  author    = {Markus Sosnowski and Richard {von Seck} and Florian Wiedner and Georg Carle},
+  title     = {{CRDT Web Caching: Enabling Distributed Writes and Fast Cache Consistency for REST APIs}},
   booktitle = {20th International Conference on Network and Service Management (CNSM)},
-  address = {Prague, Czech Republic},
-  keywords = {REST; CDN; CRDT},
-  year = 2024,
-  day=28,
-  month=oct,
+  address   = {Prague, Czech Republic},
+  year      = 2024,
+  day       = 28,
+  month     = oct,
+  doi       = {10.23919/CNSM62983.2024.10814315},
+  pdf       = {https://opendl.ifip-tc6.org/db/conf/cnsm/cnsm2024/1571043735.pdf},
 }{% endraw %}
 ```
 
