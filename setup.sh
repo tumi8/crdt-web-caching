@@ -11,7 +11,7 @@ cgget -n -g cpu -g cpuacct -g cpuset /
 
 MININET_LOC=~/mininet
 if [[ ! -d $MININET_LOC ]]; then
-	(cd ~ && git clone https://gitlab+deploy-token-1700:gldt-zSLLAYxsr45EsbQfvYzr@gitlab.lrz.de/ms/ng-api/mininet.git)
+	(cd ~ && git clone git@github.com:mininet/mininet.git)
 	# (cd $MININET_LOC && git checkout -b mininet-2.3.1b4 2.3.1b4 )
 fi
 
